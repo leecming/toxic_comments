@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 SEED = 1337
 NUM_FOLDS = 4
 BATCH_SIZE = 128
-EPOCHS = 1
+EPOCHS = 3
 NUM_NEURONS = 128
 MAX_SEQ_LEN = 100
 EMBEDDING_DIMS = 300
@@ -32,6 +32,7 @@ TARGET_COLS = ['toxic',
                'insult',
                'identity_hate']
 PICKLED_SEQ_PATH = 'data/keras_seq_{}_{}.pkl'.format(VOCAB_SIZE, MAX_SEQ_LEN)
+PICKLED_FT_MATRIX = 'data/ft_matrix_{}.pkl'.format(VOCAB_SIZE)
 
 raw_train_df = pd.read_csv('data/train.csv')
 raw_test_df = pd.read_csv('data/test.csv')
@@ -47,6 +48,7 @@ def generate_train_kfolds_indices():
     :return: (training index, validaiton index)-tuple list
     """
     seeded_kf = KFold(n_splits=NUM_FOLDS, random_state=SEED, shuffle=True)
+    print('generated train kfold indices...')
     return [(train_index, val_index) for train_index, val_index in
             seeded_kf.split(range(len(raw_train_df)))]
 
@@ -72,6 +74,7 @@ def texts_to_padded_sequences():
         test_sequences = pad_sequences(test_sequences, maxlen=MAX_SEQ_LEN)
         with open(PICKLED_SEQ_PATH, 'wb') as pickle_file:
             pickle.dump((tokenizer, train_sequences, test_sequences), pickle_file)
+    print('generated padded sequences...')
     return tokenizer, train_sequences, test_sequences
 
 
@@ -81,14 +84,23 @@ def generate_embedding_matrix(fitted_tokenizer: Tokenizer):
     :param fitted_tokenizer:
     :return:
     """
-    ft_model = load_model('data/wiki.en.bin')
+    if os.path.isfile(PICKLED_FT_MATRIX):
+        with open(PICKLED_FT_MATRIX, 'rb') as pickle_file:
+            embedding_matrix = pickle.load(pickle_file)
+    else:
+        ft_model = load_model('data/wiki.en.bin')
 
-    embedding_matrix = np.zeros((VOCAB_SIZE + 1, EMBEDDING_DIMS))
-    for i in range(1, VOCAB_SIZE + 1):
-        try:
-            embedding_matrix[i] = ft_model.get_word_vector(fitted_tokenizer.index_word[i])
-        except KeyError:
-            print('FastText OOV?')
+        embedding_matrix = np.zeros((VOCAB_SIZE + 1, EMBEDDING_DIMS))
+        for i in range(1, VOCAB_SIZE + 1):
+            try:
+                embedding_matrix[i] = ft_model.get_word_vector(fitted_tokenizer.index_word[i])
+            except KeyError:
+                print('FastText OOV?')
+
+        with open(PICKLED_FT_MATRIX, 'wb') as pickle_file:
+            pickle.dump(embedding_matrix, pickle_file)
+
+    print('generated ft embeddings...')
 
     return embedding_matrix
 
@@ -113,6 +125,8 @@ def build_bigru_model(embedding_matrix) -> Model:
     bigru_model = Model(token_input, dense_output)
     bigru_model.compile(optimizer=optimizers.Adam(),
                         loss=losses.binary_crossentropy)
+
+    print('generated bigru model...')
 
     return bigru_model
 
