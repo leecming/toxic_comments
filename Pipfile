@@ -6,6 +6,12 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+pandas = "*"
+jupyter = "*"
+tensorflow = "*"
+matplotlib = "*"
+sklearn = "*"
+pylint = "*"
 
 [requires]
 python_version = "3.6"

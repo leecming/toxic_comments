@@ -12,7 +12,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 RUN python -m pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-RUN pip install gensim nltk pandas subword-nmt tqdm
+RUN pip install gensim nltk pandas subword-nmt tqdm sklearn
 
 RUN apt-get install -y openssh-server git
 RUN mkdir /var/run/sshd
