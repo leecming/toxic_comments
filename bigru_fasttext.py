@@ -3,6 +3,7 @@ Babby's first toxic comments classifier
 using default keras tokenizer & 2 BiGRUs applied on k-folds train-val split
 """
 import os
+import pickle
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold
@@ -30,7 +31,7 @@ TARGET_COLS = ['toxic',
                'threat',
                'insult',
                'identity_hate']
-
+PICKLED_SEQ_PATH = 'data/keras_seq_{}_{}.pkl'.format(VOCAB_SIZE, MAX_SEQ_LEN)
 
 raw_train_df = pd.read_csv('data/train.csv')
 raw_test_df = pd.read_csv('data/test.csv')
@@ -57,14 +58,20 @@ def texts_to_padded_sequences():
     Then apply pre-padding with val 0.
     :return: tuple of keras Tokenizer and the train & test token sequences
     """
-    tokenizer = Tokenizer(num_words=VOCAB_SIZE)
-    train_test_comment_text = raw_train_df['comment_text'].append(raw_test_df['comment_text']).\
-        reset_index(drop=True)
-    tokenizer.fit_on_texts(train_test_comment_text)
-    train_sequences = tokenizer.texts_to_sequences(raw_train_df['comment_text'])
-    train_sequences = pad_sequences(train_sequences, maxlen=MAX_SEQ_LEN)
-    test_sequences = tokenizer.texts_to_sequences(raw_test_df['comment_text'])
-    test_sequences = pad_sequences(test_sequences, maxlen=MAX_SEQ_LEN)
+    if os.path.isfile(PICKLED_SEQ_PATH):
+        with open(PICKLED_SEQ_PATH, 'rb') as pickle_file:
+            tokenizer, train_sequences, test_sequences = pickle.load(pickle_file)
+    else:
+        tokenizer = Tokenizer(num_words=VOCAB_SIZE)
+        train_test_comment_text = raw_train_df['comment_text'].append(raw_test_df['comment_text']).\
+            reset_index(drop=True)
+        tokenizer.fit_on_texts(train_test_comment_text)
+        train_sequences = tokenizer.texts_to_sequences(raw_train_df['comment_text'])
+        train_sequences = pad_sequences(train_sequences, maxlen=MAX_SEQ_LEN)
+        test_sequences = tokenizer.texts_to_sequences(raw_test_df['comment_text'])
+        test_sequences = pad_sequences(test_sequences, maxlen=MAX_SEQ_LEN)
+        with open(PICKLED_SEQ_PATH, 'wb') as pickle_file:
+            pickle.dump((tokenizer, train_sequences, test_sequences), pickle_file)
     return tokenizer, train_sequences, test_sequences
 
 
@@ -162,7 +169,7 @@ def run_end_to_end():
     mean_predictions_df = pd.DataFrame(np.mean(fold_predictions, axis=0),
                                        columns=TARGET_COLS)
     predicted_test = pd.concat([raw_test_df, mean_predictions_df], axis=1)
-    predicted_test.to_csv('./predictions.csv')
+    predicted_test.to_csv('./predictions_bigru.csv')
 
 
 if __name__ == '__main__':
