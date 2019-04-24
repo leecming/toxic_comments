@@ -16,6 +16,7 @@ against a masked language model
     4. try mask ID of 0
 """
 import os
+from typing import Tuple
 from bigru_fasttext_base import BiGRUBaseModeller
 from utils import MLMBatchGenerator
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
@@ -36,7 +37,7 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
         self.pickled_seq_path = 'data/keras_seq_{}_{}.pkl'.format(self.vocab_size, self.max_seq_len)
         self.pickled_ft_matrix = 'data/ft_matrix_{}.pkl'.format(self.vocab_size)
 
-    def build_bigru_model(self, embedding_matrix) -> Model:
+    def build_bigru_model(self, embedding_matrix) -> Tuple[Model, Model]:
         """
         build and return multi-headed BiGru model
         with 1) MLM output from first GRU layer
@@ -56,21 +57,23 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
         lstm2_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(lstm1_output)
         main_output = layers.Dense(6, activation='sigmoid', name='main_output')(lstm2_output)
 
-        bigru_model = Model(inputs=token_input, outputs=[main_output, aux_output])
-        bigru_model.compile(optimizer=optimizers.Adam(),
-                            loss={'main_output': losses.binary_crossentropy,
-                                  'aux_output': MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)})
+        training_model = Model(inputs=token_input, outputs=[main_output, aux_output])
+        training_model.compile(optimizer=optimizers.Adam(),
+                               loss={'main_output': losses.binary_crossentropy,
+                                     'aux_output': MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)})
+
+        inference_model = Model(inputs=token_input, outputs=main_output)
 
         print('generated bigru model...')
-        print(bigru_model.summary())
+        # print(training_model.summary())
 
-        return bigru_model
+        return training_model, inference_model
 
-    def fit_model_on_fold(self, compiled_model: Model, curr_fold_indices,
+    def fit_model_on_fold(self, models: Tuple[Model, Model], curr_fold_indices,
                           train_sequences, test_sequences):
         """
         trains compiled (but previously unfitted) model against given indices
-        :param compiled_model:
+        :param models:
         :param curr_fold_indices:
         :param train_sequences:
         :param test_sequences:
@@ -85,18 +88,20 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
         y_val = self.raw_train_df[self.target_cols].iloc[val_indices].values
         val_generator = MLMBatchGenerator(x_val, y_val, self.batch_size, self.vocab_size).batch_generator()
 
-        compiled_model.fit_generator(train_generator,
+        training_model, inference_model = models
+
+        training_model.fit_generator(train_generator,
                                      steps_per_epoch=len(train_indices)//self.batch_size,
                                      epochs=self.epochs,
                                      validation_data=val_generator,
                                      validation_steps=len(val_indices)//self.batch_size)
 
         val_roc_auc_score = roc_auc_score(y_val,
-                                          compiled_model.predict(x_val,
-                                                                 batch_size=self.batch_size, verbose=0))
+                                          inference_model.predict(x_val,
+                                                                  batch_size=self.batch_size, verbose=0))
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-        test_predictions = compiled_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
+        test_predictions = inference_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
 
         return val_roc_auc_score, test_predictions
 
