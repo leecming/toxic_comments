@@ -12,6 +12,10 @@ CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 
 
 class BiGRUModellerWithMLMTiedWeights(BiGRUModellerWithMLM):
+    def __init__(self):
+        super().__init__()
+        self.save_predict_path = 'data/preds_bigru_fasttext_mlm_auxiliary_tied.csv'
+
     def build_bigru_model(self, embedding_matrix) -> Tuple[Model, Model]:
         """
         build and return multi-headed BiGru model

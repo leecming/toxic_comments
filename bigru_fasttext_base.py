@@ -37,6 +37,7 @@ class BiGRUBaseModeller:
                             'identity_hate']
         self.pickled_seq_path = 'data/keras_seq_{}_{}.pkl'.format(self.vocab_size, self.max_seq_len)
         self.pickled_ft_matrix = 'data/ft_matrix_{}.pkl'.format(self.vocab_size)
+        self.save_predict_path = 'data/preds_bigru_fasttext_base.csv'
 
         self.raw_train_df = pd.read_csv('data/train.csv')
         self.raw_test_df = pd.read_csv('data/test.csv')
@@ -182,7 +183,7 @@ class BiGRUBaseModeller:
         mean_predictions_df = pd.DataFrame(np.mean(fold_predictions, axis=0),
                                            columns=self.target_cols)
         predicted_test = pd.concat([self.raw_test_df, mean_predictions_df], axis=1)
-        predicted_test.to_csv('./predictions_bigru.csv')
+        predicted_test.to_csv(self.save_predict_path)
 
 
 if __name__ == '__main__':

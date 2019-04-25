@@ -36,6 +36,7 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
         self.vocab_size = 50000
         self.pickled_seq_path = 'data/keras_seq_{}_{}.pkl'.format(self.vocab_size, self.max_seq_len)
         self.pickled_ft_matrix = 'data/ft_matrix_{}.pkl'.format(self.vocab_size)
+        self.save_predict_path = 'data/preds_bigru_fasttext_mlm_auxiliary.csv'
 
     def build_bigru_model(self, embedding_matrix) -> Tuple[Model, Model]:
         """
