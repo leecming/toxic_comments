@@ -26,14 +26,14 @@ class BiGRUModellerWithMLMTiedWeights(BiGRUModellerWithMLM):
         """
         token_input = layers.Input(shape=(self.max_seq_len,))
         embedding_layer = ReusableEmbedding(self.vocab_size + 1,
-                                            self.embedding_dims,)
+                                            self.embedding_dims)
         embedded_input, k_embedding_matrix = embedding_layer(token_input)
-        lstm1_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
-                                                            return_sequences=True))(embedded_input)
-        tied_output = TiedOutputEmbedding()([lstm1_output, k_embedding_matrix])
+        gru1_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
+                                                           return_sequences=True))(embedded_input)
+        tied_output = TiedOutputEmbedding()([gru1_output, k_embedding_matrix])
         aux_output = layers.Activation('softmax', name='aux_output')(tied_output)
-        lstm2_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(lstm1_output)
-        main_output = layers.Dense(6, activation='sigmoid', name='main_output')(lstm2_output)
+        gru2_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(gru1_output)
+        main_output = layers.Dense(6, activation='sigmoid', name='main_output')(gru2_output)
 
         training_model = Model(inputs=token_input, outputs=[main_output, aux_output])
         training_model.compile(optimizer=optimizers.Adam(),

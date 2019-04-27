@@ -52,11 +52,11 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
                                            weights=[embedding_matrix],
                                            trainable=False)
         embedded_input = embedding_layer(token_input)
-        lstm1_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
-                                                            return_sequences=True))(embedded_input)
-        aux_output = layers.Dense(self.vocab_size + 1, 'softmax', name='aux_output')(lstm1_output)
-        lstm2_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(lstm1_output)
-        main_output = layers.Dense(6, activation='sigmoid', name='main_output')(lstm2_output)
+        gru1_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
+                                                           return_sequences=True))(embedded_input)
+        aux_output = layers.Dense(self.vocab_size + 1, 'softmax', name='aux_output')(gru1_output)
+        gru2_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(gru1_output)
+        main_output = layers.Dense(6, activation='sigmoid', name='main_output')(gru2_output)
 
         training_model = Model(inputs=token_input, outputs=[main_output, aux_output])
         training_model.compile(optimizer=optimizers.Adam(),

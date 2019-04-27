@@ -118,10 +118,10 @@ class BiGRUBaseModeller:
                                            weights=[embedding_matrix],
                                            trainable=False)
         embedded_input = embedding_layer(token_input)
-        lstm_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
-                                                           return_sequences=True))(embedded_input)
-        lstm_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(lstm_output)
-        dense_output = layers.Dense(6, activation='sigmoid')(lstm_output)
+        gru_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
+                                                          return_sequences=True))(embedded_input)
+        gru_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(gru_output)
+        dense_output = layers.Dense(6, activation='sigmoid')(gru_output)
 
         bigru_model = Model(token_input, dense_output)
         bigru_model.compile(optimizer=optimizers.Adam(),
