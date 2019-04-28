@@ -43,7 +43,7 @@ class _BaseMultiHeadAttention(Layer):
         if (compression_window_size is not None
                 and compression_window_size <= 0):
             assert ValueError(
-                f"Too small compression window ({compression_window_size})")
+                "Too small compression window ({})".format(compression_window_size))
         self.compression_window_size = compression_window_size
         super().__init__(**kwargs)
 
@@ -102,9 +102,9 @@ class _BaseMultiHeadAttention(Layer):
         """
         if d_model % self.num_heads != 0:
             raise ValueError(
-                f'The size of the last dimension of the input '
-                f'({d_model}) must be evenly divisible by the number'
-                f'of the attention heads {self.num_heads}')
+                'The size of the last dimension of the input '
+                'must be evenly divisible by the number'
+                'of the attention heads')
 
     def attention(self, pre_qkv, out_seq_len: int, d_model: int,
                   training=None):
@@ -256,9 +256,8 @@ class MultiHeadAttention(_BaseMultiHeadAttention):
         values_dim, query_dim = input_shape[0][-1], input_shape[1][-1]
         if query_dim != values_dim:
             raise ValueError(
-                f'Both keys/value and query inputs must be '
-                f'of the same dimensionality, instead of '
-                f'{values_dim} and {query_dim}.')
+                'Both keys/value and query inputs must be '
+                'of the same dimensionality, instead of ')
         d_model = query_dim
         self.validate_model_dimensionality(d_model)
         # These weights are concatenated matrices W_k and W_v which

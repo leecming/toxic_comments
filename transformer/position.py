@@ -17,9 +17,7 @@ def positional_signal(hidden_size: int, length: int,
     """
 
     if hidden_size % 2 != 0:
-        raise ValueError(
-            f"The hidden dimension of the model must be divisible by 2."
-            f"Currently it is {hidden_size}")
+        raise ValueError("The hidden dimension of the model must be divisible by 2.Currently it is {}".format(hidden_size))
     position = K.arange(0, length, dtype=K.floatx())
     num_timescales = hidden_size // 2
     log_timescale_increment = K.constant(
