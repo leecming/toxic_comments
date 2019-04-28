@@ -5,7 +5,7 @@ multitask training against MLM and toxic classifications
 import os
 from typing import Tuple
 from bigru_fasttext_base import BiGRUBaseModeller
-from utils import MLMBatchGenerator
+from data_generators import MLMBatchGenerator
 from custom_callbacks import CosineLRSchedule
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 from transformer.models import transformer_bert_model
