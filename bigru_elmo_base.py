@@ -22,6 +22,12 @@ from tensorflow.python.keras.preprocessing.text import text_to_word_sequence
 import tensorflow_hub as hub
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
+os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
+config = tf.ConfigProto()
+config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
+config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+sess = tf.Session(config=config)
+K.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 ELMO_TF_HUB_URL = 'https://tfhub.dev/google/elmo/2'
 

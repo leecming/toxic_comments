@@ -10,13 +10,21 @@ import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.metrics import roc_auc_score
 # pylint: disable=no-name-in-module
+import tensorflow as tf
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.keras.preprocessing.text import Tokenizer
 from tensorflow.python.keras import layers, optimizers, losses
 from tensorflow.python.keras.models import Model
+from tensorflow.python.keras import backend as K
 from fastText import load_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
+os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
+config = tf.ConfigProto()
+config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
+config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+sess = tf.Session(config=config)
+K.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 
 class BiGRUBaseModeller:

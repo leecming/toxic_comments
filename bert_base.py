@@ -8,13 +8,23 @@ from bigru_fasttext_base import BiGRUBaseModeller
 from data_generators import MLMBatchGenerator
 from custom_callbacks import CosineLRSchedule
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
-from transformer.models import transformer_bert_model
+import tensorflow as tf
 from tensorflow.python.keras import callbacks, losses, optimizers
 from tensorflow.python.keras.preprocessing.text import Tokenizer
 from tensorflow.python.keras.models import Model
+from tensorflow.python.keras import backend as K
 from sklearn.metrics import roc_auc_score
+from transformer.models import transformer_bert_model
+
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
+os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
+config = tf.ConfigProto()
+config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
+config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+sess = tf.Session(config=config)
+K.set_session(sess)  # set this TensorFlow session as the default session for Keras
+
 
 CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 
@@ -22,7 +32,7 @@ CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 class BERTBase(BiGRUBaseModeller):
     def __init__(self):
         super().__init__()
-        self.batch_size = 32
+        self.batch_size = 96
         self.vocab_size = 50000
         self.learning_rate = 2e-4
         self.embedding_dims = 512
