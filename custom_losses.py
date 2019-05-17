@@ -3,7 +3,30 @@ Modified version of code from https://github.com/kpot/keras-transformer
 """
 
 # noinspection PyPep8Naming
-from tensorflow.python.keras import backend as K  # pylint: disable=no-name-in-module
+from tensorflow.python.keras import backend as K  # pylint: disable=no-name-in-
+
+
+class MaskedBinaryCrossedentropy:
+    """
+    Binary cross-entropy with masking ->
+    y_true needs to be [:, 6, 2] where [:, :, 0] contains the labels
+    and [:, :, 1] contains the mask values 0/1
+    """
+    def __init__(self):
+        self.__name__ = 'MaskedBinaryCrossedentropy'
+
+    def __call__(self, y_true, y_pred):
+        y_true = K.reshape(y_true, [-1, 6, 2])  # Keras checks target/pred shapes so need to fake reshape
+        y_true_val = y_true[:, :, 0]
+        mask = y_true[:, :, 1]
+
+        # masked per-sample means of each loss
+        num_items_masked = K.sum(mask, axis=-1) + 1e-6
+        masked_cross_entropy = (
+            K.sum(mask * K.binary_crossentropy(y_true_val, y_pred),
+                  axis=-1)
+            / num_items_masked)
+        return masked_cross_entropy
 
 
 class MaskedPenalizedSparseCategoricalCrossentropy:
