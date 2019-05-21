@@ -17,7 +17,7 @@ against a masked language model
 """
 import os
 from typing import Tuple
-from bigru_fasttext_base import BiGRUBaseModeller
+from keras_bigru_fasttext_base import BiGRUBaseModeller
 from data_generators import MLMBatchGenerator
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 from tensorflow.python.keras import layers, losses, optimizers

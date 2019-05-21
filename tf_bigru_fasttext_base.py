@@ -16,7 +16,7 @@ from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.keras.preprocessing.text import Tokenizer
 from fastText import load_model
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 
 
 class TFBiGRUBaseModeller:
@@ -225,4 +225,5 @@ class TFBiGRUBaseModeller:
 
 
 if __name__ == '__main__':
+    tf.logging.set_verbosity(tf.logging.INFO)
     TFBiGRUBaseModeller().run_end_to_end()

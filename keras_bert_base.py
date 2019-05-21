@@ -4,7 +4,7 @@ multitask training against MLM and toxic classifications
 """
 import os
 from typing import Tuple
-from bigru_fasttext_base import BiGRUBaseModeller
+from keras_bigru_fasttext_base import BiGRUBaseModeller
 from data_generators import MLMBatchGenerator
 from custom_callbacks import CosineLRSchedule
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
@@ -14,7 +14,7 @@ from tensorflow.python.keras.preprocessing.text import Tokenizer
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras import backend as K
 from sklearn.metrics import roc_auc_score
-from transformer.models import transformer_bert_model
+from keras_transformer.models import transformer_bert_model
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages

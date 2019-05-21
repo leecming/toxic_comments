@@ -1,6 +1,6 @@
 import os
 from typing import Tuple
-from bigru_fasttext_mlm_auxiliary import BiGRUModellerWithMLM
+from keras_bigru_fasttext_mlm_auxiliary import BiGRUModellerWithMLM
 from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 from tensorflow.python.keras import layers, losses, optimizers
 from tensorflow.python.keras.models import Model

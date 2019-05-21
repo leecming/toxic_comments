@@ -6,9 +6,12 @@ RUN rm /etc/bash.bashrc
 
 WORKDIR /root
 
-RUN pip install gensim nltk pandas subword-nmt tqdm sklearn tensorflow-hub
+RUN pip install toposort networkx pytest html2text progressbar fire regex requests
+RUN pip install gensim nltk pandas subword-nmt tqdm sklearn tensorflow-hub tables
 
-RUN apt-get update && apt-get install -y openssh-server git
+RUN git clone https://github.com/openai/gradient-checkpointing.git gradientcheckpointing
+
+RUN apt-get update && apt-get install -y openssh-server
 RUN mkdir /var/run/sshd
 RUN echo 'root:testdocker' | chpasswd
 RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config

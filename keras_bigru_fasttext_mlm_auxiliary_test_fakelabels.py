@@ -5,7 +5,7 @@ Train on val + test set for MLM task and mask out toxicity predictions
 import os
 import numpy as np
 from typing import Tuple
-from bigru_fasttext_base import BiGRUBaseModeller
+from keras_bigru_fasttext_base import BiGRUBaseModeller
 from data_generators import MLMBatchGenerator
 from custom_losses import MaskedBinaryCrossedentropy, MaskedPenalizedSparseCategoricalCrossentropy
 from tensorflow.python.keras import layers, optimizers
