@@ -4,32 +4,29 @@ multitask training against MLM and toxic classifications
 """
 import os
 from typing import Tuple
-from keras_bigru_fasttext_base import BiGRUBaseModeller
-from data_generators import MLMBatchGenerator
-from custom_callbacks import CosineLRSchedule
-from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 import tensorflow as tf
-from tensorflow.python.keras import callbacks, losses, optimizers
+# pylint: disable=no-name-in-module
+from tensorflow.python.keras import losses, optimizers
+from tensorflow.python.keras.callbacks import LearningRateScheduler
 from tensorflow.python.keras.preprocessing.text import Tokenizer
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras import backend as K
 from sklearn.metrics import roc_auc_score
 from keras_transformer.models import transformer_bert_model
+from keras_bigru_fasttext_base import BiGRUBaseModeller
+from data_generators import MLMBatchGenerator
+from custom_callbacks import CosineLRSchedule
+from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
-config = tf.ConfigProto()
-config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
-config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-sess = tf.Session(config=config)
-K.set_session(sess)  # set this TensorFlow session as the default session for Keras
-
 
 CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 
 
 class BERTBase(BiGRUBaseModeller):
+    """Runs multi-fold training and eval of a Keras BERT implementation against toxic"""
     def __init__(self):
         super().__init__()
         self.batch_size = 96
@@ -86,18 +83,24 @@ class BERTBase(BiGRUBaseModeller):
         train_indices, val_indices = curr_fold_indices
         x_train = train_sequences[train_indices]
         y_train = self.raw_train_df[self.target_cols].iloc[train_indices].values
-        train_generator = MLMBatchGenerator(x_train, y_train, self.batch_size, self.vocab_size).batch_generator()
+        train_generator = MLMBatchGenerator(x_train,
+                                            y_train,
+                                            self.batch_size,
+                                            self.vocab_size).batch_generator()
 
         x_val = train_sequences[val_indices]
         y_val = self.raw_train_df[self.target_cols].iloc[val_indices].values
-        val_generator = MLMBatchGenerator(x_val, y_val, self.batch_size, self.vocab_size).batch_generator()
+        val_generator = MLMBatchGenerator(x_val,
+                                          y_val,
+                                          self.batch_size,
+                                          self.vocab_size).batch_generator()
 
         training_model, inference_model = models
 
-        model_callbacks = [callbacks.LearningRateScheduler(
-                                CosineLRSchedule(lr_high=self.learning_rate, lr_low=1e-8,
-                                                 initial_period=self.epochs),
-                           verbose=1)]
+        model_callbacks = [LearningRateScheduler(CosineLRSchedule(lr_high=self.learning_rate,
+                                                                  lr_low=1e-8,
+                                                                  initial_period=self.epochs),
+                                                 verbose=1)]
 
         training_model.fit_generator(train_generator,
                                      steps_per_epoch=len(train_indices)//self.batch_size,
@@ -106,15 +109,21 @@ class BERTBase(BiGRUBaseModeller):
                                      validation_steps=len(val_indices)//self.batch_size,
                                      callbacks=model_callbacks)
 
-        val_roc_auc_score = roc_auc_score(y_val,
-                                          inference_model.predict(x_val,
-                                                                  batch_size=self.batch_size, verbose=0))
+        val_predictions = inference_model.predict(x_val, batch_size=self.batch_size, verbose=0)
+        val_roc_auc_score = roc_auc_score(y_val, val_predictions)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-        test_predictions = inference_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
+        test_predictions = inference_model.predict(test_sequences,
+                                                   batch_size=self.batch_size,
+                                                   verbose=0)
 
         return val_roc_auc_score, test_predictions
 
 
 if __name__ == '__main__':
+    config = tf.ConfigProto()
+    # pylint:disable=no-member
+    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    config.gpu_options.allow_growth = True
+    K.set_session(tf.Session(config=config))
     BERTBase().run_end_to_end()

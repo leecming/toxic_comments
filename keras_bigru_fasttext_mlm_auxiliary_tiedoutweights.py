@@ -1,10 +1,15 @@
+"""
+Modification of bigru_fasttext_mlm_auxiliary -
+Where we use the tranposed word embedding to generate the LM output
+"""
 import os
 from typing import Tuple
-from keras_bigru_fasttext_mlm_auxiliary import BiGRUModellerWithMLM
-from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
+# pylint: disable=no-name-in-module
 from tensorflow.python.keras import layers, losses, optimizers
 from tensorflow.python.keras.models import Model
 from custom_layers import ReusableEmbedding, TiedOutputEmbedding
+from keras_bigru_fasttext_mlm_auxiliary import BiGRUModellerWithMLM
+from custom_losses import MaskedPenalizedSparseCategoricalCrossentropy
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 
@@ -12,6 +17,7 @@ CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 
 
 class BiGRUModellerWithMLMTiedWeights(BiGRUModellerWithMLM):
+    """ Use tied out weights for LM output"""
     def __init__(self):
         super().__init__()
         self.save_predict_path = 'data/preds_bigru_fasttext_mlm_auxiliary_tied.csv'
@@ -36,9 +42,10 @@ class BiGRUModellerWithMLMTiedWeights(BiGRUModellerWithMLM):
         main_output = layers.Dense(6, activation='sigmoid', name='main_output')(gru2_output)
 
         training_model = Model(inputs=token_input, outputs=[main_output, aux_output])
+        mlm_loss = MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)
         training_model.compile(optimizer=optimizers.Adam(),
                                loss={'main_output': losses.binary_crossentropy,
-                                     'aux_output': MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)})
+                                     'aux_output': mlm_loss})
 
         inference_model = Model(inputs=token_input, outputs=main_output)
 

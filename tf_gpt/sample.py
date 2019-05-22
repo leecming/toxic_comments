@@ -1,8 +1,14 @@
+"""
+Modified version of code from https://github.com/openai/gpt-2
+def sample_sequence can be invoked to either generate text without prompt
+or with a prompt
+"""
 import tensorflow as tf
-
 import model
 
+
 def top_k_logits(logits, k):
+    """Returns the top k logits for sample generation"""
     if k == 0:
         # no truncation
         return logits
@@ -15,14 +21,21 @@ def top_k_logits(logits, k):
             tf.ones_like(logits, dtype=logits.dtype) * -1e10,
             logits,
         )
+
     return tf.cond(
-       tf.equal(k, 0),
-       lambda: logits,
-       lambda: _top_k(),
+        tf.equal(k, 0),
+        lambda: logits,
+        lambda: _top_k(),
     )
 
 
-def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0):
+def sample_sequence(*, hparams, length, start_token=None,
+                    batch_size=None, context=None, temperature=1, top_k=0):
+    """
+    Depending on whether given a start token or a context -
+    generates text up to length with temperature compressing/expanding the logits
+    from which multinomial sampling is applied
+    """
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -30,7 +43,10 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         context = tf.fill([batch_size, 1], start_token)
 
     def step(hparams, tokens, past=None):
-        lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE)
+        lm_output = model.model(hparams=hparams,
+                                input_tokens=tokens,
+                                past=past,
+                                reuse=tf.AUTO_REUSE)
 
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
@@ -42,13 +58,12 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
 
     with tf.name_scope('sample_sequence'):
         # Don't feed the last context token -- leave that to the loop below
-        # TODO: Would be slightly faster if we called step on the entire context,
         # rather than leaving the last token transformer calculation to the while loop.
         context_output = step(hparams, context[:, :-1])
 
         def body(past, prev, output):
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
-            logits = next_outputs['logits'][:, -1, :]  / tf.to_float(temperature)
+            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             logits = top_k_logits(logits, k=top_k)
             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
             return [
@@ -57,7 +72,7 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
                 tf.concat([output, samples], axis=1),
             ]
 
-        def cond(*args):
+        def cond():
             return True
 
         _, _, tokens = tf.while_loop(

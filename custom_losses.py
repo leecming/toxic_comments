@@ -3,7 +3,8 @@ Modified version of code from https://github.com/kpot/keras-transformer
 """
 
 # noinspection PyPep8Naming
-from tensorflow.python.keras import backend as K  # pylint: disable=no-name-in-
+# pylint: disable=no-name-in-module
+from tensorflow.python.keras import backend as K
 
 
 class MaskedBinaryCrossedentropy:
@@ -16,7 +17,8 @@ class MaskedBinaryCrossedentropy:
         self.__name__ = 'MaskedBinaryCrossedentropy'
 
     def __call__(self, y_true, y_pred):
-        y_true = K.reshape(y_true, [-1, 6, 2])  # Keras checks target/pred shapes so need to fake reshape
+        # Keras checks target/pred shapes so need to fake reshape
+        y_true = K.reshape(y_true, [-1, 6, 2])
         y_true_val = y_true[:, :, 0]
         mask = y_true[:, :, 1]
 

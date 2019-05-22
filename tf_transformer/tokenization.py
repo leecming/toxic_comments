@@ -1,18 +1,7 @@
-# coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Tokenization classes."""
+"""
+Modified version of nvidia-optimized BERT code
+Tokenization classes.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -36,11 +25,11 @@ def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
     if not init_checkpoint:
         return
 
-    m = re.match("^.*?([A-Za-z0-9_-]+)/bert_model.ckpt", init_checkpoint)
-    if m is None:
+    checkpoint_matcher = re.match("^.*?([A-Za-z0-9_-]+)/bert_model.ckpt", init_checkpoint)
+    if checkpoint_matcher is None:
         return
 
-    model_name = m.group(1)
+    model_name = checkpoint_matcher.group(1)
 
     lower_models = [
         "uncased_L-24_H-1024_A-16", "uncased_L-12_H-768_A-12",
@@ -76,6 +65,7 @@ def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
 
 
 def convert_to_unicode(text):
+    # pylint: disable=undefined-variable
     """Converts `text` to Unicode (if it's not already), assuming utf-8 input."""
     if six.PY3:
         if isinstance(text, str):
@@ -96,6 +86,7 @@ def convert_to_unicode(text):
 
 
 def printable_text(text):
+    # pylint: disable=undefined-variable
     """Returns text encoded in a way suitable for print or `tf.logging`."""
 
     # These functions want `str` for both Python2 and Python3, but in one case
@@ -142,10 +133,12 @@ def convert_by_vocab(vocab, items):
 
 
 def convert_tokens_to_ids(vocab, tokens):
+    """keys vocab dict to map tokens to ids"""
     return convert_by_vocab(vocab, tokens)
 
 
 def convert_ids_to_tokens(inv_vocab, ids):
+    """flips out vocab to map ids to tokens"""
     return convert_by_vocab(inv_vocab, ids)
 
 
@@ -158,7 +151,7 @@ def whitespace_tokenize(text):
     return tokens
 
 
-class FullTokenizer(object):
+class FullTokenizer:
     """Runs end-to-end tokenziation."""
 
     def __init__(self, vocab_file, do_lower_case=True):
@@ -168,6 +161,10 @@ class FullTokenizer(object):
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
 
     def tokenize(self, text):
+        """Tokenizes text on two levels to return word piece tokens
+        1) basic white space splitting
+        2) word piece tokenizing
+        """
         split_tokens = []
         for token in self.basic_tokenizer.tokenize(text):
             for sub_token in self.wordpiece_tokenizer.tokenize(token):
@@ -176,13 +173,15 @@ class FullTokenizer(object):
         return split_tokens
 
     def convert_tokens_to_ids(self, tokens):
+        """lookup helper - given a set of text tokens, returns the ids"""
         return convert_by_vocab(self.vocab, tokens)
 
     def convert_ids_to_tokens(self, ids):
+        """given a set of ids to text tokens"""
         return convert_by_vocab(self.inv_vocab, ids)
 
 
-class BasicTokenizer(object):
+class BasicTokenizer:
     """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
 
     def __init__(self, do_lower_case=True):
@@ -217,7 +216,8 @@ class BasicTokenizer(object):
         output_tokens = whitespace_tokenize(" ".join(split_tokens))
         return output_tokens
 
-    def _run_strip_accents(self, text):
+    @staticmethod
+    def _run_strip_accents(text):
         """Strips accents from a piece of text."""
         text = unicodedata.normalize("NFD", text)
         output = []
@@ -228,7 +228,8 @@ class BasicTokenizer(object):
             output.append(char)
         return "".join(output)
 
-    def _run_split_on_punc(self, text):
+    @staticmethod
+    def _run_split_on_punc(text):
         """Splits punctuation on a piece of text."""
         chars = list(text)
         i = 0
@@ -252,8 +253,8 @@ class BasicTokenizer(object):
         """Adds whitespace around any CJK character."""
         output = []
         for char in text:
-            cp = ord(char)
-            if self._is_chinese_char(cp):
+            codepoint = ord(char)
+            if self._is_chinese_char(codepoint):
                 output.append(" ")
                 output.append(char)
                 output.append(" ")
@@ -261,7 +262,8 @@ class BasicTokenizer(object):
                 output.append(char)
         return "".join(output)
 
-    def _is_chinese_char(self, cp):
+    @staticmethod
+    def _is_chinese_char(input_codepoint):
         """Checks whether CP is the codepoint of a CJK character."""
         # This defines a "chinese character" as anything in the CJK Unicode block:
         #   https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
@@ -271,24 +273,25 @@ class BasicTokenizer(object):
         # as is Japanese Hiragana and Katakana. Those alphabets are used to write
         # space-separated words, so they are not treated specially and handled
         # like the all of the other languages.
-        if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
-                (cp >= 0x3400 and cp <= 0x4DBF) or  #
-                (cp >= 0x20000 and cp <= 0x2A6DF) or  #
-                (cp >= 0x2A700 and cp <= 0x2B73F) or  #
-                (cp >= 0x2B740 and cp <= 0x2B81F) or  #
-                (cp >= 0x2B820 and cp <= 0x2CEAF) or
-                (cp >= 0xF900 and cp <= 0xFAFF) or  #
-                (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
+        if ((0x4E00 <= input_codepoint <= 0x9FFF) or  #
+                (0x3400 <= input_codepoint <= 0x4DBF) or  #
+                (0x20000 <= input_codepoint <= 0x2A6DF) or  #
+                (0x2A700 <= input_codepoint <= 0x2B73F) or  #
+                (0x2B740 <= input_codepoint <= 0x2B81F) or  #
+                (0x2B820 <= input_codepoint <= 0x2CEAF) or
+                (0xF900 <= input_codepoint <= 0xFAFF) or  #
+                (0x2F800 <= input_codepoint <= 0x2FA1F)):  #
             return True
 
         return False
 
-    def _clean_text(self, text):
+    @staticmethod
+    def _clean_text(text):
         """Performs invalid character removal and whitespace cleanup on text."""
         output = []
         for char in text:
-            cp = ord(char)
-            if cp == 0 or cp == 0xfffd or _is_control(char):
+            codepoint = ord(char)
+            if codepoint == 0 or codepoint == 0xfffd or _is_control(char):
                 continue
             if _is_whitespace(char):
                 output.append(" ")
@@ -297,7 +300,7 @@ class BasicTokenizer(object):
         return "".join(output)
 
 
-class WordpieceTokenizer(object):
+class WordpieceTokenizer:
     """Runs WordPiece tokenziation."""
 
     def __init__(self, vocab, unk_token="[UNK]", max_input_chars_per_word=200):
@@ -363,7 +366,7 @@ def _is_whitespace(char):
     """Checks whether `chars` is a whitespace character."""
     # \t, \n, and \r are technically contorl characters but we treat them
     # as whitespace since they are generally considered as such.
-    if char == " " or char == "\t" or char == "\n" or char == "\r":
+    if char in (" ", "\t", "\n", "\r"):
         return True
     cat = unicodedata.category(char)
     if cat == "Zs":
@@ -375,7 +378,7 @@ def _is_control(char):
     """Checks whether `chars` is a control character."""
     # These are technically control characters but we count them as whitespace
     # characters.
-    if char == "\t" or char == "\n" or char == "\r":
+    if char in ("\t", "\n", "\r"):
         return False
     cat = unicodedata.category(char)
     if cat.startswith("C"):
@@ -385,13 +388,13 @@ def _is_control(char):
 
 def _is_punctuation(char):
     """Checks whether `chars` is a punctuation character."""
-    cp = ord(char)
+    char_ordinal = ord(char)
     # We treat all non-letter/number ASCII as punctuation.
     # Characters such as "^", "$", and "`" are not in the Unicode
     # Punctuation class but we treat them as punctuation anyways, for
     # consistency.
-    if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
-            (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
+    if ((33 <= char_ordinal <= 47) or (58 <= char_ordinal <= 64) or
+            (91 <= char_ordinal <= 96) or (123 <= char_ordinal <= 126)):
         return True
     cat = unicodedata.category(char)
     if cat.startswith("P"):

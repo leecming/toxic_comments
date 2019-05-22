@@ -8,14 +8,14 @@ Architecture goes to BiGRU
 """
 import os
 from typing import List, Tuple
-import tensorflow as tf
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.metrics import roc_auc_score
 # pylint: disable=no-name-in-module
 # noinspection PyPep8Naming
-from tensorflow.python.keras import backend as K  # pylint: disable=no-name-in-module
+import tensorflow as tf
+from tensorflow.python.keras import backend as K
 from tensorflow.python.keras import layers, optimizers, losses
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras.preprocessing.text import text_to_word_sequence
@@ -23,21 +23,18 @@ import tensorflow_hub as hub
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
-config = tf.ConfigProto()
-config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
-config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-sess = tf.Session(config=config)
-K.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 ELMO_TF_HUB_URL = 'https://tfhub.dev/google/elmo/2'
 
 
-def elmo_embedding(x):
-    return hub.Module(ELMO_TF_HUB_URL, trainable=False)(tf.squeeze(tf.cast(x, tf.string)),
+def elmo_embedding(raw_text):
+    """calls to tf hub to get word embeddings, tokenization happens there"""
+    return hub.Module(ELMO_TF_HUB_URL, trainable=False)(tf.squeeze(tf.cast(raw_text, tf.string)),
                                                         signature='default', as_dict=True)['elmo']
 
 
 class BiGRUElmoBaseModeller:
+    """Basic BiGRU used with ELMo TF hub as embedding layer"""
     def __init__(self):
         self.seed = 1337
         self.num_folds = 4
@@ -74,10 +71,8 @@ class BiGRUElmoBaseModeller:
 
     def texts_to_padded_sequences(self) -> Tuple[List, List]:
         """
-        Use keras tokenizer set to defaults & specified vocab size to
-        tokenize the training and test comments
-        Then apply pre-padding with val 0.
-        :return: tuple of keras Tokenizer and the train & test token sequences
+        we're passing tf hub the raw text but need to do
+        parsing here to make sure num tokens is fixed to max_seq_len
         """
         def split_and_pad(input_string):
             tokenised_string = text_to_word_sequence(input_string)
@@ -137,12 +132,13 @@ class BiGRUElmoBaseModeller:
                                epochs=self.epochs,
                                validation_data=(x_val, y_val))
 
-            val_roc_auc_score = roc_auc_score(y_val,
-                                              compiled_model.predict(x_val,
-                                                                     batch_size=self.batch_size, verbose=0))
+            val_pred = compiled_model.predict(x_val, batch_size=self.batch_size, verbose=0)
+            val_roc_auc_score = roc_auc_score(y_val, val_pred)
             print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-            test_predictions = compiled_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
+            test_predictions = compiled_model.predict(test_sequences,
+                                                      batch_size=self.batch_size,
+                                                      verbose=0)
 
         return val_roc_auc_score, test_predictions
 
@@ -171,4 +167,9 @@ class BiGRUElmoBaseModeller:
 
 
 if __name__ == '__main__':
+    config = tf.ConfigProto()
+    # pylint:disable=no-member
+    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    config.gpu_options.allow_growth = True
+    K.set_session(tf.Session(config=config))
     BiGRUElmoBaseModeller().run_end_to_end()

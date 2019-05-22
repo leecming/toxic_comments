@@ -1,8 +1,10 @@
+""" Modified version of gpt for toxic comments"""
 import json
 import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+# pylint: disable=no-name-in-module
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import KFold
 from sklearn.metrics import log_loss, roc_auc_score
@@ -66,6 +68,7 @@ flags.DEFINE_bool('use_xla', False, 'Whether to enable XLA JIT compilation.')
 
 
 class GPTToxicClassifier:
+    """Wrapper with preprocessor and model builder using custom tf estimator"""
     def __init__(self, model_name: str):
         """
         Initializes encoder from pre-trained model's vocab & bpe merges,
@@ -76,8 +79,11 @@ class GPTToxicClassifier:
         self.enc = encoder.get_encoder(model_name)
         self.hparams = model.default_hparams()
         self.hparams.add_hparam('dropout_rate', 0.)  # add dropout for training
-        with open(os.path.join('data', 'models', model_name, 'hparams.json')) as f:
-            self.hparams.override_from_dict(json.load(f))
+        with open(os.path.join('data',
+                               'models',
+                               model_name,
+                               'hparams.json')) as param_file:
+            self.hparams.override_from_dict(json.load(param_file))
 
         self.train_df = pd.read_csv(TOXIC_TRAIN_PATH)
         self.test_df = pd.read_csv(TOXIC_TEST_PATH)
@@ -104,17 +110,22 @@ class GPTToxicClassifier:
 
     @staticmethod
     def input_fn_builder(is_training=False):
+        """vanilla input function builder using in-memory array"""
         def input_fn(features, labels, batch_size):
+            # pylint: disable=unused-argument
             """The actual input function."""
-            d = tf.data.Dataset.from_tensor_slices(features)
+            dataset = tf.data.Dataset.from_tensor_slices(features)
             if is_training:
-                d = d.repeat()
-                d = d.shuffle(buffer_size=100000)
-            return d.batch(batch_size)
+                dataset = dataset.repeat()
+                dataset = dataset.shuffle(buffer_size=100000)
+            return dataset.batch(batch_size)
         return input_fn
 
     def model_fn_builder(self, learning_rate, num_train_steps, num_warmup_steps):
+        # pylint: disable=no-member
+        """vanilla model builder for custom estimator"""
         def model_fn(features, labels, mode, params):
+            # pylint: disable=unused-argument
             input_ids = features['input_ids']
             label_ids = features['label_ids']
 
@@ -124,7 +135,7 @@ class GPTToxicClassifier:
                 self.hparams.dropout_rate = 0.
 
             total_loss, probabilities = model.classifier_model(hparams=self.hparams,
-                                                               X=input_ids,
+                                                               input_tokens=input_ids,
                                                                labels=label_ids,
                                                                past=None,
                                                                reuse=tf.AUTO_REUSE)
@@ -165,12 +176,17 @@ class GPTToxicClassifier:
 
 
 def main(_):
+    # pylint: disable=no-member
+    """Runs through multi fold train eval"""
     tf.logging.set_verbosity(tf.logging.INFO)
     gpt_classifier = GPTToxicClassifier(FLAGS.model_name)
     gpt_classifier.generate_all_sequences_and_labels()
 
-    fold_AUC = 0
+    fold_auc = 0
     fold_log_loss = 0
+    train_input_fn = GPTToxicClassifier.input_fn_builder(is_training=True)
+    test_input_fn = GPTToxicClassifier.input_fn_builder(is_training=False)
+
     for curr_fold in range(FLAGS.num_folds):
         # START OF FOLD
         output_dir = '/tmp/toxic_output/fold{}'.format(curr_fold)
@@ -187,16 +203,16 @@ def main(_):
             keep_checkpoint_max=3)
 
         fold_train_indices, fold_val_indices = gpt_classifier.train_folds[curr_fold]
-        fold_X_train = np.take(gpt_classifier.train_sequences, fold_train_indices, axis=0)
+        fold_x_train = np.take(gpt_classifier.train_sequences, fold_train_indices, axis=0)
         fold_y_train = np.take(gpt_classifier.train_labels, fold_train_indices, axis=0)
-        train_features = {'input_ids': fold_X_train,
+        train_features = {'input_ids': fold_x_train,
                           'label_ids': fold_y_train}
-        fold_X_val = np.take(gpt_classifier.train_sequences, fold_val_indices, axis=0)
+        fold_x_val = np.take(gpt_classifier.train_sequences, fold_val_indices, axis=0)
         fold_y_val = np.take(gpt_classifier.train_labels, fold_val_indices, axis=0)
-        val_features = {'input_ids': fold_X_val,
+        val_features = {'input_ids': fold_x_val,
                         'label_ids': fold_y_val}
 
-        num_train_steps = int(fold_X_train.shape[0] / FLAGS.batch_size * FLAGS.num_train_epochs)
+        num_train_steps = int(fold_x_train.shape[0] / FLAGS.batch_size * FLAGS.num_train_epochs)
         num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
         model_fn = gpt_classifier.model_fn_builder(learning_rate=FLAGS.learning_rate,
@@ -208,30 +224,29 @@ def main(_):
             config=run_config)
 
         tf.logging.info("***** Running training for fold %d*****", curr_fold)
-        tf.logging.info("  Num examples = %d", fold_X_train.shape[0])
+        tf.logging.info("  Num examples = %d", fold_x_train.shape[0])
         tf.logging.info("  Batch size = %d", FLAGS.batch_size)
         tf.logging.info("  Num steps = %d", num_train_steps)
-        estimator.train(input_fn=lambda: GPTToxicClassifier.input_fn_builder(is_training=True)(train_features,
-                                                                                               None,
-                                                                                               FLAGS.batch_size),
+        estimator.train(input_fn=lambda: train_input_fn(train_features,
+                                                        None,
+                                                        FLAGS.batch_size),
                         max_steps=num_train_steps)
         tf.logging.info("***** Running evaluation *****")
-        tf.logging.info("  Num examples = %d", fold_X_val.shape[0])
+        tf.logging.info("  Num examples = %d", fold_x_val.shape[0])
         tf.logging.info("  Batch size = %d", FLAGS.batch_size)
-        val_predictions = estimator.predict(input_fn=lambda: GPTToxicClassifier.
-                                            input_fn_builder(is_training=False)(val_features,
-                                                                                None,
-                                                                                FLAGS.batch_size))
+        val_predictions = estimator.predict(input_fn=lambda: test_input_fn(val_features,
+                                                                           None,
+                                                                           FLAGS.batch_size))
         val_prob = np.array([x['probabilities'] for x in val_predictions])
         val_roc_auc_score = roc_auc_score(fold_y_val, val_prob)
         val_log_loss = log_loss(fold_y_val, val_prob)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
         print('log loss val score: {0:.4f}'.format(val_log_loss))
-        fold_AUC += val_roc_auc_score
+        fold_auc += val_roc_auc_score
         fold_log_loss += val_log_loss
         tf.reset_default_graph()
         # END OF FOLD
-    print('Mean AUC: {0:.4f}'.format(fold_AUC / FLAGS.num_folds))
+    print('Mean AUC: {0:.4f}'.format(fold_auc / FLAGS.num_folds))
     print('Mean log-loss: {0:.4f}'.format(fold_log_loss / FLAGS.num_folds))
 
 

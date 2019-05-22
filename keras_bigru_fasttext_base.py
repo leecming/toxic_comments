@@ -20,14 +20,14 @@ from fastText import load_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
-config = tf.ConfigProto()
-config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # JIT compilation
-config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-sess = tf.Session(config=config)
-K.set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 
 class BiGRUBaseModeller:
+    """
+    Base class with standard methods to preprocess data,
+    run multi-fold training and eval, and
+    to make predictions against the test set
+    """
     def __init__(self):
         self.seed = 1337
         self.num_folds = 4
@@ -160,12 +160,13 @@ class BiGRUBaseModeller:
                            epochs=self.epochs,
                            validation_data=(x_val, y_val))
 
-        val_roc_auc_score = roc_auc_score(y_val,
-                                          compiled_model.predict(x_val,
-                                                                 batch_size=self.batch_size, verbose=0))
+        val_pred = compiled_model.predict(x_val, batch_size=self.batch_size, verbose=0)
+        val_roc_auc_score = roc_auc_score(y_val, val_pred)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-        test_predictions = compiled_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
+        test_predictions = compiled_model.predict(test_sequences,
+                                                  batch_size=self.batch_size,
+                                                  verbose=0)
 
         return val_roc_auc_score, test_predictions
 
@@ -195,4 +196,9 @@ class BiGRUBaseModeller:
 
 
 if __name__ == '__main__':
+    config = tf.ConfigProto()
+    # pylint:disable=no-member
+    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1  # XLA
+    config.gpu_options.allow_growth = True
+    K.set_session(tf.Session(config=config))
     BiGRUBaseModeller().run_end_to_end()

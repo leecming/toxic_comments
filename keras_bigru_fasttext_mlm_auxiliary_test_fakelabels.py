@@ -3,14 +3,16 @@ Modification of bigru_fasttext_mlm_auxiliary -
 Train on val + test set for MLM task and mask out toxicity predictions
 """
 import os
-import numpy as np
 from typing import Tuple
-from keras_bigru_fasttext_base import BiGRUBaseModeller
-from data_generators import MLMBatchGenerator
-from custom_losses import MaskedBinaryCrossedentropy, MaskedPenalizedSparseCategoricalCrossentropy
+import numpy as np
+import pandas as pd
+# pylint: disable=no-name-in-module
 from tensorflow.python.keras import layers, optimizers
 from tensorflow.python.keras.models import Model
 from sklearn.metrics import log_loss, roc_auc_score
+from keras_bigru_fasttext_base import BiGRUBaseModeller
+from data_generators import MLMBatchGenerator
+from custom_losses import MaskedBinaryCrossedentropy, MaskedPenalizedSparseCategoricalCrossentropy
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 
@@ -18,6 +20,7 @@ CONFIDENCE_PENALTY = 0.1  # used by MLM loss to penalize overconfident guesses
 
 
 class BiGRUModellerWithMLM(BiGRUBaseModeller):
+    """ Applies MLM against test labels while ignoring classification outputs"""
     def __init__(self):
         super().__init__()
         self.batch_size = 32
@@ -47,9 +50,10 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
         main_output = layers.Dense(6, activation='sigmoid', name='main_output')(gru2_output)
 
         training_model = Model(inputs=token_input, outputs=[main_output, aux_output])
+        mlm_loss = MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)
         training_model.compile(optimizer=optimizers.Adam(),
                                loss={'main_output': MaskedBinaryCrossedentropy(),
-                                     'aux_output': MaskedPenalizedSparseCategoricalCrossentropy(CONFIDENCE_PENALTY)})
+                                     'aux_output': mlm_loss})
 
         inference_model = Model(inputs=token_input, outputs=main_output)
 
@@ -88,7 +92,8 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
 
         train_generator = MLMBatchGenerator(x_train,
                                             y_train,
-                                            self.batch_size, self.vocab_size).batch_generator()
+                                            self.batch_size,
+                                            self.vocab_size).batch_generator()
 
         x_val = train_sequences[val_indices]
         y_val_targets = self.raw_train_df[self.target_cols].iloc[val_indices].values
@@ -96,7 +101,10 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
                          6,
                          2))
         y_val[:, :, 0] = y_val_targets
-        val_generator = MLMBatchGenerator(x_val, y_val, self.batch_size, self.vocab_size).batch_generator()
+        val_generator = MLMBatchGenerator(x_val,
+                                          y_val,
+                                          self.batch_size,
+                                          self.vocab_size).batch_generator()
 
         training_model, inference_model = models
 
@@ -106,13 +114,17 @@ class BiGRUModellerWithMLM(BiGRUBaseModeller):
                                      validation_data=val_generator,
                                      validation_steps=len(val_indices)//self.batch_size)
 
-        val_pred = inference_model.predict(x_val, batch_size=self.batch_size, verbose=0)
+        val_pred = inference_model.predict(x_val,
+                                           batch_size=self.batch_size,
+                                           verbose=0)
         val_roc_auc_score = roc_auc_score(y_val_targets, val_pred)
         val_log_loss = log_loss(y_val_targets, val_pred)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
         print('log-loss val score: {0:.4f}'.format(val_log_loss))
 
-        test_predictions = inference_model.predict(test_sequences, batch_size=self.batch_size, verbose=0)
+        test_predictions = inference_model.predict(test_sequences,
+                                                   batch_size=self.batch_size,
+                                                   verbose=0)
 
         return val_roc_auc_score, val_log_loss, test_predictions
 

@@ -20,6 +20,10 @@ from fastText import load_model
 
 
 class TFBiGRUBaseModeller:
+    """
+    Standard 2-level BiGRU but in bare TF format
+    equivalent to keras_bigru_fasgttext_base
+    """
     def __init__(self):
         self.seed = 1337
         self.num_folds = 4
@@ -106,6 +110,7 @@ class TFBiGRUBaseModeller:
 
         return embedding_matrix
 
+    # pylint: disable=no-member
     def build_bigru_model(self, embedding_matrix) -> tf.estimator.Estimator:
         """
         build and return BiGru model using standard optimizer and loss
@@ -113,6 +118,7 @@ class TFBiGRUBaseModeller:
         :return:
         """
         def embedding_initializer(shape=None, dtype=tf.float32, partition_info=None):
+            # pylint: disable=unused-argument
             assert dtype is tf.float32
             return embedding_matrix
 
@@ -123,8 +129,8 @@ class TFBiGRUBaseModeller:
                                                               embedding_matrix.shape[1],
                                                               initializer=embedding_initializer,
                                                               trainable=False)
-            gru_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons,
-                                                              return_sequences=True))(embedded_input)
+            first_gru = layers.CuDNNGRU(self.num_neurons, return_sequences=True)
+            gru_output = layers.Bidirectional(first_gru)(embedded_input)
             gru_output = layers.Bidirectional(layers.CuDNNGRU(self.num_neurons))(gru_output)
             logits = layers.Dense(6)(gru_output)
 
@@ -184,17 +190,15 @@ class TFBiGRUBaseModeller:
 
         compiled_model.train(input_fn=lambda: train_input_fn(x_train, y_train, self.batch_size),
                              steps=self.epochs * len(train_indices) // self.batch_size,)
-
-        # eval_result = compiled_model.evaluate(input_fn=lambda: eval_input_fn(x_val, y_val, self.batch_size))
-        # print('Validation loss: {}'.format(eval_result))
-
-        val_predictions = compiled_model.predict(input_fn=lambda: eval_input_fn(x_val, None, self.batch_size))
+        lambda_input_fn = lambda: eval_input_fn(x_val, None, self.batch_size)
+        val_predictions = compiled_model.predict(lambda_input_fn)
         val_prob = np.array([x['probabilities'] for x in val_predictions])
         val_roc_auc_score = roc_auc_score(y_val, val_prob)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
         x_test = {'sequence': test_sequences}
-        test_predictions = compiled_model.predict(input_fn=lambda: eval_input_fn(x_test, None, self.batch_size))
+        lambda_input_fn = lambda: eval_input_fn(x_test, None, self.batch_size)
+        test_predictions = compiled_model.predict(input_fn=lambda_input_fn)
         test_prob = np.array([x['probabilities'] for x in test_predictions])
 
         return val_roc_auc_score, test_prob

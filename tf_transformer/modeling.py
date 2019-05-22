@@ -1,18 +1,7 @@
-# coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""The main BERT model and related functions."""
+"""
+Modified version of nvidia-optimized BERT code
+The main BERT model and related functions.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -30,7 +19,7 @@ import tensorflow as tf
 from .gpu_environment import get_custom_getter
 
 
-class BertConfig(object):
+class BertConfig:
     """Configuration for `BertModel`."""
 
     def __init__(self,
@@ -106,7 +95,7 @@ class BertConfig(object):
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
 
-class BertModel(object):
+class BertModel:
     """BERT model ("Bidirectional Encoder Representations from Transformers").
 
     Example usage:
@@ -173,7 +162,8 @@ class BertModel(object):
         if token_type_ids is None:
             token_type_ids = tf.zeros(shape=[batch_size, seq_length], dtype=tf.int32)
 
-        with tf.variable_scope(scope, default_name="bert", custom_getter=get_custom_getter(compute_type)):
+        with tf.variable_scope(scope, default_name="bert",
+                               custom_getter=get_custom_getter(compute_type)):
             with tf.variable_scope("embeddings"):
                 # Perform embedding lookup on the word ids.
                 (self.embedding_output, self.embedding_table) = embedding_lookup(
@@ -237,6 +227,9 @@ class BertModel(object):
                     kernel_initializer=create_initializer(config.initializer_range))
 
     def get_pooled_output(self):
+        """
+        Gets the dense applied to hidden layer output for the 1st token
+        """
         return self.pooled_output
 
     def get_sequence_output(self):
@@ -249,6 +242,7 @@ class BertModel(object):
         return self.sequence_output
 
     def get_all_encoder_layers(self):
+        """ Returns hidden layer for all blocks"""
         return self.all_encoder_layers
 
     def get_embedding_output(self):
@@ -263,10 +257,12 @@ class BertModel(object):
         return self.embedding_output
 
     def get_embedding_table(self):
+        """ Returns the embedding matrix"""
         return self.embedding_table
 
 
 def gelu(x):
+    # pylint: disable=invalid-name
     """Gaussian Error Linear Unit.
 
     This is a smoother version of the RELU.
@@ -315,8 +311,7 @@ def get_activation(activation_string):
         return gelu
     elif act == "tanh":
         return tf.tanh
-    else:
-        raise ValueError("Unsupported activation: %s" % act)
+    raise ValueError("Unsupported activation: %s" % act)
 
 
 def get_assignment_map_from_checkpoint(tvars, init_checkpoint):
@@ -327,23 +322,23 @@ def get_assignment_map_from_checkpoint(tvars, init_checkpoint):
     name_to_variable = collections.OrderedDict()
     for var in tvars:
         name = var.name
-        m = re.match("^(.*):\\d+$", name)
-        if m is not None:
-            name = m.group(1)
+        var_name_matcher = re.match("^(.*):\\d+$", name)
+        if var_name_matcher is not None:
+            name = var_name_matcher.group(1)
         name_to_variable[name] = var
 
     init_vars = tf.train.list_variables(init_checkpoint)
 
     assignment_map = collections.OrderedDict()
-    for x in init_vars:
-        (name, var) = (x[0], x[1])
+    for curr_var in init_vars:
+        (name, var) = (curr_var[0], curr_var[1])
         if name not in name_to_variable:
             continue
         assignment_map[name] = name
         initialized_variable_names[name] = 1
         initialized_variable_names[name + ":0"] = 1
 
-    return (assignment_map, initialized_variable_names)
+    return assignment_map, initialized_variable_names
 
 
 def dropout(input_tensor, dropout_prob):
@@ -892,9 +887,9 @@ def transformer_model(input_tensor,
             final_output = reshape_from_matrix(layer_output, input_shape)
             final_outputs.append(final_output)
         return final_outputs
-    else:
-        final_output = reshape_from_matrix(prev_output, input_shape)
-        return final_output
+
+    final_output = reshape_from_matrix(prev_output, input_shape)
+    return final_output
 
 
 def get_shape_list(tensor, expected_rank=None, name=None):
@@ -979,8 +974,8 @@ def assert_rank(tensor, expected_rank, name=None):
     if isinstance(expected_rank, six.integer_types):
         expected_rank_dict[expected_rank] = True
     else:
-        for x in expected_rank:
-            expected_rank_dict[x] = True
+        for curr_rank in expected_rank:
+            expected_rank_dict[curr_rank] = True
 
     actual_rank = tensor.shape.ndims
     if actual_rank not in expected_rank_dict:

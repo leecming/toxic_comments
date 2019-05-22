@@ -1,21 +1,5 @@
-# coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """
-Cleaned up version of run_classifier for toxic comments specifically.
-1. setup for k-folds cross-validation
-2. moved from commandline flags to internal settings
+Modified version of nvidia-bert for toxic comments specifically.
 """
 
 from __future__ import absolute_import
@@ -24,14 +8,14 @@ from __future__ import print_function
 
 import collections
 import os
-from tf_transformer import modeling
-import custom_optimization
-from tf_transformer import tokenization
 import tensorflow as tf
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.metrics import roc_auc_score
+import custom_optimization
+from tf_transformer import modeling
+from tf_transformer import tokenization
 
 SEED = 1337  # seed for generating cross-folds
 NUM_FOLDS = 4
@@ -102,7 +86,7 @@ flags.DEFINE_bool("use_fp16", False, "Whether to use fp32 or fp16 arithmetic on 
 flags.DEFINE_bool("use_xla", False, "Whether to enable XLA JIT compilation.")
 
 
-class InputExample(object):
+class InputExample:
     """A single training/test example for simple sequence classification."""
 
     def __init__(self, guid, text_a, text_b=None, label=None):
@@ -123,7 +107,7 @@ class InputExample(object):
         self.label = label
 
 
-class InputFeatures(object):
+class InputFeatures:
     """A single set of features of data."""
 
     def __init__(self,
@@ -147,22 +131,32 @@ class ToxicProcessor:
                                 seeded_kf.split(range(len(pd.read_csv(self.train_path))))]
 
     def get_train_examples(self, curr_fold):
+        """returns training examples for specified fold"""
         return self._create_examples("train", curr_fold)
 
     def get_val_examples(self, curr_fold):
+        """returns validation examples for specified fold"""
         return self._create_examples("val", curr_fold)
 
     def get_test_examples(self):
-        return self._create_examples("test")
+        """returns test examples for specified fold"""
+        return self._create_examples("test", None)
 
     def _create_examples(self, mode, curr_fold):
-        """Creates examples for the data sets."""
-        """Convert toxic comments CSVs into InputExamples"""
+        """
+        Creates examples for the data sets.
+        Convert toxic comments CSVs into InputExamples
+        """
         def get_row_labels(mode, row):
             if mode == "test":
                 return 0, 0, 0, 0, 0, 0
-            else:
-                return row.toxic, row.severe_toxic, row.obscene, row.threat, row.insult, row.identity_hate
+
+            return row.toxic, \
+                   row.severe_toxic, \
+                   row.obscene, \
+                   row.threat, \
+                   row.insult, \
+                   row.identity_hate
 
         input_file = self.test_path if mode == "test" else self.train_path
         raw_toxic_df = pd.read_csv(input_file)
@@ -278,8 +272,8 @@ def file_based_convert_examples_to_features(
                                          max_seq_length, tokenizer)
 
         def create_int_feature(values):
-            f = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
-            return f
+            created_feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
+            return created_feature
 
         features = collections.OrderedDict()
         features["input_ids"] = create_int_feature(feature.input_ids)
@@ -310,30 +304,30 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
         # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
         # So cast all int64 to int32.
         for name in list(example.keys()):
-            t = example[name]
-            if t.dtype == tf.int64:
-                t = tf.to_int32(t)
-            example[name] = t
+            curr_feature = example[name]
+            if curr_feature.dtype == tf.int64:
+                curr_feature = tf.to_int32(curr_feature)
+            example[name] = curr_feature
 
         return example
 
-    def input_fn(params):
+    def input_fn(params): # pylint: disable=unused-argument
         """The actual input function."""
 
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
-        d = tf.data.TFRecordDataset(input_file)
+        dataset = tf.data.TFRecordDataset(input_file)
         if is_training:
-            d = d.repeat()
-            d = d.shuffle(buffer_size=100000)
+            dataset = dataset.repeat()
+            dataset = dataset.shuffle(buffer_size=100000)
 
-        d = d.apply(
+        dataset = dataset.apply(
             tf.contrib.data.map_and_batch(
                 lambda record: _decode_record(record, name_to_features),
                 batch_size=batch_size,
                 drop_remainder=drop_remainder))
 
-        return d
+        return dataset
 
     return input_fn
 
@@ -403,6 +397,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     """Returns `model_fn` closure for Estimator."""
 
     def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
+        # pylint: disable=no-member
         """The `model_fn` for Estimator."""
 
         tf.logging.info("*** Features ***")
@@ -459,6 +454,8 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
 
 def main(_):
+    """Runs through multi-fold training and eval"""
+    # pylint: disable=no-member
     tf.logging.set_verbosity(tf.logging.INFO)
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)

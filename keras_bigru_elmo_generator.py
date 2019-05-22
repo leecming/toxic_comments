@@ -20,6 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
 
 
 class BiGRUElmoGeneratorModeller:
+    """generator based variant of ELMO base"""
     def __init__(self):
         self.seed = 1337
         self.num_folds = 4
@@ -105,19 +106,25 @@ class BiGRUElmoGeneratorModeller:
         train_indices, val_indices = curr_fold_indices
         x_train = train_sequences[train_indices]
         y_train = self.raw_train_df[self.target_cols].iloc[train_indices].values
-        train_generator = ELMoTFHubGenerator(x_train, y_train,
+        train_generator = ELMoTFHubGenerator(x_train,
+                                             y_train,
                                              batch_size=self.batch_size,
-                                             shuffle=True, num_processes=self.num_processes).batch_generator()
+                                             shuffle=True,
+                                             num_processes=self.num_processes).batch_generator()
 
         x_val = train_sequences[val_indices]
         y_val = self.raw_train_df[self.target_cols].iloc[val_indices].values
-        val_generator = ELMoTFHubGenerator(x_val, y_val,
+        val_generator = ELMoTFHubGenerator(x_val,
+                                           y_val,
                                            batch_size=self.batch_size,
-                                           shuffle=False, num_processes=self.num_processes).batch_generator()
+                                           shuffle=False,
+                                           num_processes=self.num_processes).batch_generator()
 
-        test_generator = ELMoTFHubGenerator(test_sequences, None,
+        test_generator = ELMoTFHubGenerator(test_sequences,
+                                            None,
                                             batch_size=self.batch_size,
-                                            shuffle=False, num_processes=self.num_processes).batch_generator()
+                                            shuffle=False,
+                                            num_processes=self.num_processes).batch_generator()
 
         compiled_model.fit(train_generator,
                            steps_per_epoch=len(train_indices) // self.batch_size,
@@ -125,17 +132,17 @@ class BiGRUElmoGeneratorModeller:
                            validation_data=val_generator,
                            validation_steps=len(val_indices) // self.batch_size)
 
-        val_roc_auc_score = roc_auc_score(y_val,
-                                          compiled_model.predict_generator(val_generator,
-                                                                           steps=len(val_indices) // self.batch_size,
-                                                                           verbose=0))
+        val_pred = compiled_model.predict_generator(val_generator,
+                                                    steps=len(val_indices) // self.batch_size,
+                                                    verbose=0)
+        val_roc_auc_score = roc_auc_score(y_val, val_pred)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-        test_predictions = compiled_model.predict_generator(test_generator,
-                                                            steps=len(test_sequences) // self.batch_size,
-                                                            verbose=0)
+        test_pred = compiled_model.predict_generator(test_generator,
+                                                     steps=len(test_sequences) // self.batch_size,
+                                                     verbose=0)
 
-        return val_roc_auc_score, test_predictions
+        return val_roc_auc_score, test_pred
 
     def run_end_to_end(self):
         """

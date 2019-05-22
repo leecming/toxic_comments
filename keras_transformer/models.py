@@ -6,8 +6,7 @@ Modified version of code from https://github.com/kpot/keras-transformer
 """
 # noinspection PyPep8Naming
 # pylint: disable=no-name-in-module
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.layers import Add, Input, Dense, Embedding, Lambda, Softmax
+from tensorflow.python.keras.layers import Input, Dense, Lambda, Softmax
 from tensorflow.python.keras import regularizers
 from tensorflow.python.keras.models import Model
 from .extras import ReusableEmbedding, TiedOutputEmbedding
