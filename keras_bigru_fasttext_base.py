@@ -19,7 +19,7 @@ from tensorflow.python.keras import backend as K
 from fastText import load_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # suppress TF debug messages
-os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
+# os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'  # use FP16 to halve memory usage!!!
 
 
 class BiGRUBaseModeller:
@@ -164,11 +164,9 @@ class BiGRUBaseModeller:
         val_roc_auc_score = roc_auc_score(y_val, val_pred)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
 
-        test_predictions = compiled_model.predict(test_sequences,
-                                                  batch_size=self.batch_size,
-                                                  verbose=0)
-
-        return val_roc_auc_score, test_predictions
+        val_df = pd.DataFrame(val_pred, index=val_indices)
+        val_df.columns = self.target_cols
+        return val_roc_auc_score, val_df
 
     def run_end_to_end(self):
         """
@@ -189,10 +187,10 @@ class BiGRUBaseModeller:
             fold_roc_auc_scores.append(curr_fold_results[0])
             fold_predictions.append(curr_fold_results[1])
         print('mean val AUC: {0:.4f}'.format(np.mean(fold_roc_auc_scores)))
-        mean_predictions_df = pd.DataFrame(np.mean(fold_predictions, axis=0),
-                                           columns=self.target_cols)
-        predicted_test = pd.concat([self.raw_test_df, mean_predictions_df], axis=1)
-        predicted_test.to_csv(self.save_predict_path)
+        pred_df = pd.concat(fold_predictions)
+        pred_df['id'] = self.raw_train_df['id'].iloc[pred_df.index.values]
+        pred_df = pred_df[['id'] + self.target_cols]
+        pred_df.to_csv(self.save_predict_path, index=False)
 
 
 if __name__ == '__main__':
