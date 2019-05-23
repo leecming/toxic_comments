@@ -11,7 +11,7 @@ RUN pip install gensim nltk pandas subword-nmt tqdm sklearn tensorflow-hub table
 
 RUN git clone https://github.com/openai/gradient-checkpointing.git gradientcheckpointing
 
-RUN apt-get update && apt-get install -y openssh-server
+RUN apt-get update && apt-get install -y openssh-server screen
 RUN mkdir /var/run/sshd
 RUN echo 'root:testdocker' | chpasswd
 RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
