@@ -19,6 +19,12 @@ from tf_transformer import tokenization
 
 SEED = 1337  # seed for generating cross-folds
 NUM_FOLDS = 4
+TARGET_COLS = ['toxic',
+               'severe_toxic',
+               'obscene',
+               'threat',
+               'insult',
+               'identity_hate']
 
 flags = tf.flags
 FLAGS = flags.FLAGS
@@ -465,6 +471,7 @@ def main(_):
             "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
 
     fold_auc = 0.
+    fold_val_predictions = []
 
     for curr_fold in range(NUM_FOLDS):
         output_dir = '/tmp/toxic_output/fold{}'.format(curr_fold)
@@ -533,6 +540,7 @@ def main(_):
         if FLAGS.do_eval:
             eval_examples = processor.get_val_examples(curr_fold)
             y_val = np.array([x.label for x in eval_examples])
+            y_ids = np.array([x.guid for x in eval_examples])
             num_actual_eval_examples = len(eval_examples)
             eval_file = os.path.join(output_dir, "eval.tf_record")
             file_based_convert_examples_to_features(
@@ -556,6 +564,8 @@ def main(_):
             val_roc_auc_score = roc_auc_score(y_val, val_prob)
             print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
             fold_auc += val_roc_auc_score
+            pred_df = pd.DataFrame(val_prob, columns=TARGET_COLS, index=y_ids)
+            fold_val_predictions.append(pred_df)
 
         if FLAGS.do_predict:
             predict_examples = processor.get_test_examples()
@@ -598,6 +608,11 @@ def main(_):
         tf.reset_default_graph()
 
     print('Mean ROC-AUC val score: {0:.4f}'.format(fold_auc / NUM_FOLDS))
+    pred_df = pd.concat(fold_val_predictions)
+    raw_train_df = pd.read_csv('data/train.csv')
+    pred_df['id'] = raw_train_df['id'].iloc[pred_df.index.values]
+    pred_df = pred_df[['id'] + TARGET_COLS]
+    pred_df.to_csv('data/preds_bert.csv', index=False)
 
 
 if __name__ == "__main__":

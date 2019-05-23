@@ -184,6 +184,7 @@ def main(_):
 
     fold_auc = 0
     fold_log_loss = 0
+    fold_val_predictions = []
     train_input_fn = GPTToxicClassifier.input_fn_builder(is_training=True)
     test_input_fn = GPTToxicClassifier.input_fn_builder(is_training=False)
 
@@ -240,14 +241,21 @@ def main(_):
         val_prob = np.array([x['probabilities'] for x in val_predictions])
         val_roc_auc_score = roc_auc_score(fold_y_val, val_prob)
         val_log_loss = log_loss(fold_y_val, val_prob)
+        pred_df = pd.DataFrame(val_prob, columns=TARGET_COLS, index=fold_val_indices)
         print('ROC-AUC val score: {0:.4f}'.format(val_roc_auc_score))
         print('log loss val score: {0:.4f}'.format(val_log_loss))
         fold_auc += val_roc_auc_score
         fold_log_loss += val_log_loss
+        fold_val_predictions.append(pred_df)
         tf.reset_default_graph()
         # END OF FOLD
     print('Mean AUC: {0:.4f}'.format(fold_auc / FLAGS.num_folds))
     print('Mean log-loss: {0:.4f}'.format(fold_log_loss / FLAGS.num_folds))
+    pred_df = pd.concat(fold_val_predictions)
+    raw_train_df = pd.read_csv('data/train.csv')
+    pred_df['id'] = raw_train_df['id'].iloc[pred_df.index.values]
+    pred_df = pred_df[['id'] + TARGET_COLS]
+    pred_df.to_csv('data/preds_gpt.csv', index=False)
 
 
 if __name__ == '__main__':
