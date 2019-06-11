@@ -15,6 +15,7 @@ The modules are largely self-contained, performing multi-fold training and evalu
 |Keras BiGRU FastText w/ MLM and Tied out weights|[Module](keras_bigru_fasttext_mlm_auxiliary_tiedoutweights.py)|MLM + tied out weights|
 |TF BERT|[Module](tf_bert.py)|[Modified version](https://github.com/NVIDIA/DeepLearningExamples/tree/master/TensorFlow/LanguageModeling/BERT) of Nvidia + Google's TensorFlow implementation of BERT with support for AMP (i.e., FP16)|
 |TF GPT|[Module](tf_gpt.py)|[Modified version](https://github.com/openai/gpt-2) of OpenAI's TensorFlow implementation of GPT|[Language Models are Unsupervised Multitask Learners](https://d4mucfpksywv.cloudfront.net/better-language-models/language-models.pdf)|
+|Distilled BERT|[Module](tf_bert_soft_targets.py)|BERT modified to train against combined loss function of soft & hard targets (i.e., knowledge distillation)|[Distilling the Knowledge in a Neural Network](https://arxiv.org/pdf/1503.02531.pdf)
 
 ### Setup
 1. A [DockerFile](Dockerfile) is provided which builds against an Nvidia-provided Docker image, and installs the necessary Nvidia, system, and Python prerequisites - IMPORTANT: the Dockerfile installs an SSH server with a default password
@@ -29,4 +30,5 @@ The modules are largely self-contained, performing multi-fold training and evalu
 4. [Neural Machine Translation of Rare Words with Subword Units](https://arxiv.org/abs/1508.07909) - Lays out the BPE compression/tokenization technique
 5. [Universal Transformers](https://arxiv.org/abs/1807.03819) - Improvement over the base Transformer architecture
 6. [Nvidia Automatic Mixed Precision](https://devblogs.nvidia.com/nvidia-automatic-mixed-precision-tensorflow/) - Lays out Nvidia's FP16 training technique
+7. [Distilling the Knowledge in a Neural Network](https://arxiv.org/pdf/1503.02531.pdf)
 
